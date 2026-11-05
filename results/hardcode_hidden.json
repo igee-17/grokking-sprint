@@ -1,0 +1,55 @@
+{
+  "score": 0.0,
+  "passed": false,
+  "mean_test_acc": 0.0104,
+  "runs": [
+    {
+      "op": "mul",
+      "seed": 11,
+      "train_acc": 0.0112,
+      "test_acc": 0.0096,
+      "n_params": 1,
+      "seconds": 6.5
+    },
+    {
+      "op": "mul",
+      "seed": 23,
+      "train_acc": 0.0096,
+      "test_acc": 0.0106,
+      "n_params": 1,
+      "seconds": 6.8
+    },
+    {
+      "op": "aff",
+      "seed": 11,
+      "train_acc": 0.0104,
+      "test_acc": 0.0103,
+      "n_params": 1,
+      "seconds": 6.4
+    },
+    {
+      "op": "aff",
+      "seed": 23,
+      "train_acc": 0.0096,
+      "test_acc": 0.0108,
+      "n_params": 1,
+      "seconds": 6.9
+    },
+    {
+      "op": "div",
+      "seed": 11,
+      "train_acc": 0.0099,
+      "test_acc": 0.0104,
+      "n_params": 1,
+      "seconds": 6.4
+    },
+    {
+      "op": "div",
+      "seed": 23,
+      "train_acc": 0.0091,
+      "test_acc": 0.0109,
+      "n_params": 1,
+      "seconds": 6.6
+    }
+  ]
+}

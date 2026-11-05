@@ -1,0 +1,11 @@
+[PASS] ../reference/solution.py: legit solution passes static check 
+[PASS] ../task/starter/solution.py: legit solution passes static check 
+[PASS] peek_frames.py: blocked by static -> line 5: import of 'inspect' not allowed
+[PASS] label_leak.py: blocked by static -> line 19: attribute '.register_hook' not allowed
+[PASS] symbolic_mod.py: blocked by static -> line 17: operator 'Mod' not allowed
+[PASS] getattr_bypass.py: blocked by static -> line 16: use of 'getattr' not allowed
+[PASS] tamper_hook.py: blocked by runtime -> ValueError: on_after_backward changed parameter values; only .grad may be modified
+[PASS] buffer_stash.py: blocked by runtime -> ValueError: buffers are not allowed; all state must be trainable parameters
+[PASS] hardcode_public.py: blocked by hidden ops -> hidden-op mean acc 0.0104
+
+0 failure(s)
