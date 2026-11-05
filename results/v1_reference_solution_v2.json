@@ -1,0 +1,58 @@
+{
+  "version": "v1",
+  "steps": 1000,
+  "train_frac": 0.4,
+  "score": 1.0,
+  "passed": true,
+  "mean_test_acc": 1.0,
+  "runs": [
+    {
+      "op": "mul",
+      "seed": 11,
+      "train_acc": 1.0,
+      "test_acc": 1.0,
+      "n_params": 193889,
+      "seconds": 34.7
+    },
+    {
+      "op": "mul",
+      "seed": 23,
+      "train_acc": 1.0,
+      "test_acc": 1.0,
+      "n_params": 193889,
+      "seconds": 35.2
+    },
+    {
+      "op": "aff",
+      "seed": 11,
+      "train_acc": 1.0,
+      "test_acc": 1.0,
+      "n_params": 193889,
+      "seconds": 33.3
+    },
+    {
+      "op": "aff",
+      "seed": 23,
+      "train_acc": 1.0,
+      "test_acc": 1.0,
+      "n_params": 193889,
+      "seconds": 37.3
+    },
+    {
+      "op": "div",
+      "seed": 11,
+      "train_acc": 1.0,
+      "test_acc": 1.0,
+      "n_params": 193889,
+      "seconds": 34.4
+    },
+    {
+      "op": "div",
+      "seed": 23,
+      "train_acc": 1.0,
+      "test_acc": 1.0,
+      "n_params": 193889,
+      "seconds": 38.5
+    }
+  ]
+}

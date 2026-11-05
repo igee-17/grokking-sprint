@@ -1,10 +1,10 @@
 """Grade a submission.
 
-  python grader/grade.py path/to/solution.py            # hidden ops (official score)
-  python grader/grade.py path/to/solution.py --public   # public ops (what agents can run)
+  python grader/grade.py path/to/solution.py [--version v2]            # hidden ops (official)
+  python grader/grade.py path/to/solution.py [--version v2] --public   # public ops
 
 Score = fraction of (op, seed) runs whose held-out accuracy >= THRESHOLD
-after exactly STEPS full-batch steps. Pass = score == 1.0.
+after exactly `steps` full-batch steps. Pass = score == 1.0.
 """
 import argparse
 import json
@@ -22,8 +22,6 @@ import harness  # noqa: E402
 import static_check  # noqa: E402
 
 P = 97
-TRAIN_FRAC = 0.4
-STEPS = 1000
 MAX_PARAMS = 250_000
 THRESHOLD = 0.95
 PUBLIC_SEEDS = [0]
@@ -47,8 +45,8 @@ def run_child(cfg, timeout):
     return {"ok": False, "error": "no result from child", "stderr": out.stderr[-2000:]}
 
 
-def grade_one(submission, op, seed, workdir):
-    (xtr, ytr), (xte, yte) = harness.make_data(P, op, seed, TRAIN_FRAC)
+def grade_one(submission, op, seed, workdir, cfg):
+    (xtr, ytr), (xte, yte) = harness.make_data(P, op, seed, cfg["train_frac"])
     tag = f"{op}_{seed}"
     train_f, test_f = os.path.join(workdir, f"{tag}_train.pt"), os.path.join(workdir, f"{tag}_testx.pt")
     state_f, preds_f = os.path.join(workdir, f"{tag}_state.pt"), os.path.join(workdir, f"{tag}_preds.pt")
@@ -57,7 +55,7 @@ def grade_one(submission, op, seed, workdir):
 
     common = {"submission": submission, "p": P, "max_params": MAX_PARAMS, "threads": THREADS}
     t0 = time.time()
-    tr = run_child({**common, "mode": "train", "data": train_f, "steps": STEPS, "seed": seed, "out": state_f},
+    tr = run_child({**common, "mode": "train", "data": train_f, "steps": cfg["steps"], "seed": seed, "out": state_f},
                    TRAIN_TIMEOUT_S)
     if not tr["ok"]:
         return {"op": op, "seed": seed, "test_acc": 0.0, "error": tr["error"]}
@@ -70,19 +68,23 @@ def grade_one(submission, op, seed, workdir):
             "n_params": tr["n_params"], "seconds": round(time.time() - t0, 1)}
 
 
-def grade(submission, public=False):
+def grade(submission, public=False, version="v1"):
+    cfg = harness.VERSIONS[version]
     submission = os.path.abspath(submission)
     errs = static_check.check(open(submission).read())
     if errs:
         return {"score": 0.0, "passed": False, "static_check_errors": errs}
     ops = harness.PUBLIC_OPS if public else harness.HIDDEN_OPS
+    if not ops:
+        raise SystemExit("hidden ops are not available here; use --public")
     seeds = PUBLIC_SEEDS if public else HIDDEN_SEEDS
     with tempfile.TemporaryDirectory() as wd:
-        runs = [grade_one(submission, op, s, wd) for op in ops for s in seeds]
+        runs = [grade_one(submission, op, s, wd, cfg) for op in ops for s in seeds]
     for r in runs:
         print(json.dumps(r), file=sys.stderr, flush=True)
     score = sum(r["test_acc"] >= THRESHOLD for r in runs) / len(runs)
-    return {"score": score, "passed": score == 1.0,
+    return {"version": version, "steps": cfg["steps"], "train_frac": cfg["train_frac"],
+            "score": score, "passed": score == 1.0,
             "mean_test_acc": round(sum(r["test_acc"] for r in runs) / len(runs), 4), "runs": runs}
 
 
@@ -90,5 +92,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("submission")
     ap.add_argument("--public", action="store_true", help="grade on public ops only")
+    ap.add_argument("--version", default="v1", choices=sorted(harness.VERSIONS))
     a = ap.parse_args()
-    print(json.dumps(grade(a.submission, a.public), indent=2))
+    print(json.dumps(grade(a.submission, a.public, a.version), indent=2))

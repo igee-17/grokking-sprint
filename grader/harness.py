@@ -1,21 +1,28 @@
 """Task definition: operations and deterministic train/held-out splits.
 
-Only the grader imports this. Submissions never see the op or the split.
+Public ops live here. Hidden ops live in hidden_ops.py, which is NOT shipped
+to the agent workspace (see scripts/make_agent_workspace.py).
 """
 import torch
 
 OPS = {
-    # public (described in problem.md)
     "add": lambda a, b, p: (a + b) % p,
     "sub": lambda a, b, p: (a - b) % p,
-    # hidden (only the grader knows these)
-    "mul": lambda a, b, p: (a * b) % p,
-    "aff": lambda a, b, p: (a + 5 * b) % p,
-    "quad": lambda a, b, p: (a * a + a * b + b * b) % p,  # too hard in budget; kept for reference
-    "div": lambda a, b, p: (a * pow(int(b), p - 2, p)) % p if b != 0 else None,
 }
 PUBLIC_OPS = ["add", "sub"]
-HIDDEN_OPS = ["mul", "aff", "div"]
+
+try:
+    from hidden_ops import HIDDEN  # noqa: E402
+    OPS.update(HIDDEN)
+    HIDDEN_OPS = list(HIDDEN)
+except ImportError:  # agent workspace
+    HIDDEN_OPS = []
+
+# Versions differ only in budget and data. Everything else is shared.
+VERSIONS = {
+    "v1": {"steps": 1000, "train_frac": 0.4},
+    "v2": {"steps": 500, "train_frac": 0.3},
+}
 
 
 def make_data(p, op, seed, train_frac):

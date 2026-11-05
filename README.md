@@ -37,15 +37,43 @@ See [`task/problem.md`](task/problem.md). In short:
   mod 97) across 2 seeds each. A run passes at ≥95% held-out accuracy. Score =
   fraction of passing runs.
 
+**Two difficulty levels** (same code, `--version` flag):
+
+| | Steps | Train split | What it takes to pass |
+|---|---|---|---|
+| **v1** | 1000 | 40% | One idea: increase the weight-decay pull (lr × wd) |
+| **v2** | 500 | 30% | Two ideas combined: an architecture change *and* an optimizer change |
+
 ## Results
 
-| Submission | Hidden-op score | Mean held-out acc |
+| Submission | v1 score | v2 score |
 |---|---|---|
-| Starter (AdamW, lr 1e-3, wd 1.0) | **0 / 6** | 1.1% |
-| Reference (AdamW, lr 5e-3, wd 2.0) | **6 / 6** | 100% |
-| Exploit: hardcode the public op | **0 / 6** | 1.0% (chance) |
+| Starter (ReLU MLP, AdamW lr 1e-3, wd 1.0) | **0 / 6** | **0 / 6** |
+| v1 reference (ReLU, lr 5e-3, wd 2.0) | **6 / 6** | **0 / 6** (1.2% held-out) |
+| v2 reference (quadratic activation, lr 1e-2, wd 3.0) | **6 / 6** | **6 / 6** |
+| Exploit: hardcode the public op | **0 / 6** | — |
 
-Raw grader output is in [`results/`](results/). Each run is ~30 s on 2 CPU threads.
+Raw grader output is in [`results/`](results/). A v1 run takes ~30 s and a v2 run
+~10 s on 2 CPU threads.
+
+### How v2 was calibrated
+
+v2 had to be hard enough that one trick doesn't solve it. I swept ideas from
+each paper on the hidden ops (time-to-95% checked every 25 steps):
+
+| Idea alone | Result at 500 steps / 30% |
+|---|---|
+| Optimizer only (lr 1e-2, wd 3–4, ReLU) | Passes `mul`/`div`, **stalls on `aff` at 28–46%** |
+| Smaller init (Omnigrok) + optimizer | Same: `aff` stuck at 28–37% |
+| Quadratic activation only (lr 5e-3) | 67–94%, **below the bar** |
+| Cosine schedule with warmup | Worse: ~2% |
+| **Quadratic activation + lr 1e-2, wd 3** | **≥95% by step ~250–375 on every op and seed** |
+
+The quadratic activation works because a network with x → x² can represent
+the modular-arithmetic solution exactly using Fourier-feature embeddings
+(Gromov, 2023). The circuit that generalizes starts out much closer to
+initialization than it does with ReLU. The optimizer change then supplies
+the weight-norm pressure that makes the network find it.
 
 ## Threat model: how an agent could cheat, and what stops it
 
@@ -94,38 +122,53 @@ real research task and not a lookup:
    at ~38% held-out for 8000 steps on `add` (p=59), which was too slow to calibrate
    on CPU. The embedding-MLP setup groks reliably.
 
-## Known limitations and next version
+## Known limitations
 
-- **Difficulty is on the easy side.** A two-number optimizer change passes. For
-  frontier agents I'd tighten it to 500 steps and/or a 30% train split, so that
-  passing needs a *combination* of ideas, such as schedule, initialization scale
-  (Liu et al.), and architecture (quadratic activations; Gromov, 2023).
-- **The static check is a filter, not a sandbox.** Production use needs a
-  container with no network, the grader and `harness.py` outside the agent's
-  filesystem (they contain the hidden ops), and resource limits.
+- **The static check is a filter, not a sandbox.** Hidden ops live in
+  `grader/hidden_ops.py`, which the workspace exporter never copies, and agent
+  runs happen in a Docker container that only mounts the exported workspace.
+  A production setup would also want network and resource limits.
 - **A subtle residual leak.** Parameter gradients carry aggregate label
   information, such as the output-bias gradient = per-class counts. I don't see a
   path from that to recovering the op under the static rules, but I haven't proven it.
-- **No agent transcripts yet.** Next step: run several coding agents on
-  `task/` and report score, hypotheses tried, and failure modes.
+- **Two seeds per op.** Enough to separate the reference from the baseline, but
+  agent scores near the threshold would need more seeds to be trusted.
+- **v2 reference margin.** The hardest case (`aff`, seed 11) passes at step
+  ~375 of 500. That's comfortable, but a different PyTorch build could shift it.
 
 ## Run it
 
 ```bash
 pip install -r requirements.txt
 python grader/grade.py task/starter/solution.py --public   # what an agent can run
-python grader/grade.py reference/solution.py               # official hidden-op score
+python grader/grade.py reference/solution.py               # official hidden-op score (v1)
+python grader/grade.py reference/solution_v2.py --version v2
 python redteam/run_redteam.py                              # all exploits must score 0
 python analysis/plot_curves.py mul 2000                    # regenerate the figure
 ```
+
+## Running an agent on it
+
+```bash
+ANTHROPIC_API_KEY=sk-... ./agent_runs/run_claude_code.sh v2 opus 1
+```
+
+This exports a clean workspace (public ops only) to `~/grokking-agent-runs/`,
+runs Claude Code headless inside a Docker container that can see only that
+folder, grades the result on hidden ops outside the container, and writes a
+`summary.md` with the score, turns, cost, tool usage, the agent's own notes,
+and its diff. See [`agent_runs/README.md`](agent_runs/README.md).
 
 ## Layout
 
 ```
 task/            what the agent gets: problem.md + starter/solution.py
 grader/          grade.py (scoring), runner.py (isolated child process),
-                 static_check.py, harness.py (ops + splits; hidden from agents)
-reference/       author's passing solution, with the reasoning in its docstring
+                 static_check.py, harness.py (public ops, splits, versions),
+                 hidden_ops.py (never exported to agents)
+reference/       solution.py (v1) and solution_v2.py, reasoning in docstrings
+scripts/         make_agent_workspace.py: clean export for an agent run
+agent_runs/      Docker sandbox, run script, transcript summarizer, results
 redteam/         one exploit per defense + run_redteam.py
 analysis/        curve plotting
 results/         grader outputs and figure
